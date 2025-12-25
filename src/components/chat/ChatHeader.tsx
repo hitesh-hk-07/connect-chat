@@ -1,12 +1,13 @@
 import { motion } from "framer-motion";
-import { Hash, Phone, Video, MoreVertical, Users } from "lucide-react";
+import { Hash, Phone, Video, MoreVertical, Users, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface ChatHeaderProps {
   roomName?: string;
+  isDm?: boolean;
 }
 
-const ChatHeader = ({ roomName = "General" }: ChatHeaderProps) => {
+const ChatHeader = ({ roomName = "General", isDm = false }: ChatHeaderProps) => {
   return (
     <motion.header
       initial={{ opacity: 0, y: -20 }}
@@ -16,7 +17,11 @@ const ChatHeader = ({ roomName = "General" }: ChatHeaderProps) => {
     >
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2">
-          <Hash className="w-5 h-5 text-muted-foreground" />
+          {isDm ? (
+            <MessageCircle className="w-5 h-5 text-muted-foreground" />
+          ) : (
+            <Hash className="w-5 h-5 text-muted-foreground" />
+          )}
           <h1 className="font-semibold text-foreground">{roomName}</h1>
         </div>
         <span className="px-2 py-1 text-xs rounded-full bg-green-500/20 text-green-400 flex items-center gap-1">
