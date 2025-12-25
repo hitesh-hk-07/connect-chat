@@ -21,6 +21,12 @@ interface TypingUser {
   roomId: string;
 }
 
+interface DirectMessage {
+  odivtherId: string;
+  odivtherName: string;
+  unread: number;
+}
+
 // Mock Socket implementation - replace with real Socket.IO connection
 // To use real Socket.IO: npm install socket.io-client
 // Then: import { io } from "socket.io-client";
@@ -37,9 +43,15 @@ export const useSocket = (userId: string, username: string) => {
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
   const [currentRoom, setCurrentRoom] = useState("general");
   const [isConnected, setIsConnected] = useState(true);
+  const [directMessages, setDirectMessages] = useState<DirectMessage[]>([]);
+
+  // Helper to generate DM room ID
+  const getDmRoomId = (id1: string, id2: string) => {
+    return `dm_${[id1, id2].sort().join("_")}`;
+  };
 
   // Mock initial messages per room
-  const [roomMessages] = useState<Record<string, Message[]>>({
+  const [roomMessages, setRoomMessages] = useState<Record<string, Message[]>>({
     general: [
       { id: "1", content: "Welcome to the general chat! 👋", sender: "Alex", senderId: "1", roomId: "general", timestamp: new Date(Date.now() - 3600000) },
       { id: "2", content: "Hey everyone! How's it going?", sender: "Jordan", senderId: "2", roomId: "general", timestamp: new Date(Date.now() - 1800000) },
@@ -65,28 +77,94 @@ export const useSocket = (userId: string, username: string) => {
       roomId: currentRoom,
       timestamp: new Date(),
     };
+    
+    setRoomMessages(prev => ({
+      ...prev,
+      [currentRoom]: [...(prev[currentRoom] || []), newMessage]
+    }));
     setMessages((prev) => [...prev, newMessage]);
 
-    // Simulate reply
-    setTimeout(() => {
-      const replies = ["That's cool!", "Interesting 🤔", "Nice! 👍", "Tell me more!"];
-      const randomUser = users.filter(u => u.id !== userId && u.isOnline)[0];
-      if (randomUser) {
-        setMessages((prev) => [...prev, {
-          id: crypto.randomUUID(),
-          content: replies[Math.floor(Math.random() * replies.length)],
-          sender: randomUser.username,
-          senderId: randomUser.id,
-          roomId: currentRoom,
-          timestamp: new Date(),
-        }]);
+    // Simulate reply for channels (not DMs to make it more realistic)
+    if (!currentRoom.startsWith("dm_")) {
+      setTimeout(() => {
+        const replies = ["That's cool!", "Interesting 🤔", "Nice! 👍", "Tell me more!"];
+        const randomUser = users.filter(u => u.id !== userId && u.isOnline)[0];
+        if (randomUser) {
+          const replyMessage: Message = {
+            id: crypto.randomUUID(),
+            content: replies[Math.floor(Math.random() * replies.length)],
+            sender: randomUser.username,
+            senderId: randomUser.id,
+            roomId: currentRoom,
+            timestamp: new Date(),
+          };
+          setRoomMessages(prev => ({
+            ...prev,
+            [currentRoom]: [...(prev[currentRoom] || []), replyMessage]
+          }));
+          setMessages((prev) => [...prev, replyMessage]);
+        }
+      }, 1500 + Math.random() * 2000);
+    } else {
+      // Simulate DM reply
+      const otherUserId = currentRoom.replace("dm_", "").split("_").find(id => id !== userId);
+      const otherUser = users.find(u => u.id === otherUserId);
+      if (otherUser?.isOnline) {
+        setTimeout(() => {
+          const dmReplies = ["Hey! 👋", "Got it!", "Thanks for the message!", "Let's chat more!"];
+          const replyMessage: Message = {
+            id: crypto.randomUUID(),
+            content: dmReplies[Math.floor(Math.random() * dmReplies.length)],
+            sender: otherUser.username,
+            senderId: otherUser.id,
+            roomId: currentRoom,
+            timestamp: new Date(),
+          };
+          setRoomMessages(prev => ({
+            ...prev,
+            [currentRoom]: [...(prev[currentRoom] || []), replyMessage]
+          }));
+          setMessages((prev) => [...prev, replyMessage]);
+        }, 2000 + Math.random() * 3000);
       }
-    }, 1500 + Math.random() * 2000);
+    }
   }, [userId, username, currentRoom, users]);
 
   const joinRoom = useCallback((roomId: string) => {
     setCurrentRoom(roomId);
   }, []);
+
+  const startDirectMessage = useCallback((targetUserId: string, targetUsername: string) => {
+    const dmRoomId = getDmRoomId(userId, targetUserId);
+    
+    // Add to DM list if not already there
+    setDirectMessages(prev => {
+      if (!prev.find(dm => dm.odivtherId === targetUserId)) {
+        return [...prev, { odivtherId: targetUserId, odivtherName: targetUsername, unread: 0 }];
+      }
+      return prev;
+    });
+
+    // Initialize room messages if empty
+    setRoomMessages(prev => {
+      if (!prev[dmRoomId]) {
+        return {
+          ...prev,
+          [dmRoomId]: [{
+            id: crypto.randomUUID(),
+            content: `Start of your conversation with ${targetUsername}`,
+            sender: "System",
+            senderId: "system",
+            roomId: dmRoomId,
+            timestamp: new Date(),
+          }]
+        };
+      }
+      return prev;
+    });
+
+    setCurrentRoom(dmRoomId);
+  }, [userId]);
 
   const startTyping = useCallback(() => {
     // In real implementation, emit typing event to server
@@ -95,6 +173,16 @@ export const useSocket = (userId: string, username: string) => {
   const stopTyping = useCallback(() => {
     // In real implementation, emit stop typing event to server
   }, []);
+
+  // Check if current room is a DM
+  const isDmRoom = currentRoom.startsWith("dm_");
+  
+  // Get other user in DM
+  const getDmOtherUser = useCallback(() => {
+    if (!isDmRoom) return null;
+    const otherUserId = currentRoom.replace("dm_", "").split("_").find(id => id !== userId);
+    return users.find(u => u.id === otherUserId) || null;
+  }, [currentRoom, isDmRoom, userId, users]);
 
   // Simulate random typing indicators
   useEffect(() => {
@@ -115,8 +203,12 @@ export const useSocket = (userId: string, username: string) => {
     typingUsers: typingUsers.filter(t => t.roomId === currentRoom),
     currentRoom,
     isConnected,
+    isDmRoom,
+    directMessages,
+    getDmOtherUser,
     sendMessage,
     joinRoom,
+    startDirectMessage,
     startTyping,
     stopTyping,
   };

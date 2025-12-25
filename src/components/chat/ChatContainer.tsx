@@ -23,8 +23,12 @@ const ChatContainer = () => {
     users,
     typingUsers,
     currentRoom,
+    isDmRoom,
+    directMessages,
+    getDmOtherUser,
     sendMessage,
     joinRoom,
+    startDirectMessage,
     startTyping,
     stopTyping,
   } = useSocket(user?.id || "", user?.username || "");
@@ -39,7 +43,14 @@ const ChatContainer = () => {
     scrollToBottom();
   }, [messages]);
 
-  const currentRoomName = rooms.find((r) => r.id === currentRoom)?.name || currentRoom;
+  // Get room name - either channel name or DM user name
+  const getRoomDisplayName = () => {
+    if (isDmRoom) {
+      const otherUser = getDmOtherUser();
+      return otherUser?.username || "Direct Message";
+    }
+    return rooms.find((r) => r.id === currentRoom)?.name || currentRoom;
+  };
 
   return (
     <div className="flex h-screen max-h-screen bg-background">
@@ -47,6 +58,9 @@ const ChatContainer = () => {
         rooms={rooms}
         currentRoom={currentRoom}
         onRoomChange={joinRoom}
+        directMessages={directMessages}
+        onStartDm={startDirectMessage}
+        currentUserId={user?.id || ""}
       />
 
       <motion.div
@@ -58,7 +72,7 @@ const ChatContainer = () => {
           background: "linear-gradient(135deg, hsl(225 25% 8%) 0%, hsl(230 30% 12%) 100%)",
         }}
       >
-        <ChatHeader roomName={currentRoomName} />
+        <ChatHeader roomName={getRoomDisplayName()} isDm={isDmRoom} />
 
         <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin">
           <AnimatePresence mode="popLayout">
@@ -90,7 +104,11 @@ const ChatContainer = () => {
         />
       </motion.div>
 
-      <UserList users={users} currentUserId={user?.id || ""} />
+      <UserList 
+        users={users} 
+        currentUserId={user?.id || ""} 
+        onStartDm={startDirectMessage}
+      />
     </div>
   );
 };
