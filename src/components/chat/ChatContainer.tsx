@@ -1,51 +1,34 @@
-import { useState, useRef, useEffect } from "react";
+import { useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ChatHeader from "./ChatHeader";
 import ChatMessage from "./ChatMessage";
 import ChatInput from "./ChatInput";
+import ChatSidebar from "./ChatSidebar";
+import UserList from "./UserList";
+import TypingIndicator from "./TypingIndicator";
+import { useSocket } from "@/hooks/useSocket";
+import { useAuth } from "@/contexts/AuthContext";
 
-interface Message {
-  id: string;
-  content: string;
-  sender: string;
-  avatar?: string;
-  timestamp: Date;
-  isOwn: boolean;
-}
-
-const initialMessages: Message[] = [
-  {
-    id: "1",
-    content: "Hey everyone! Welcome to the chat 👋",
-    sender: "Alex",
-    timestamp: new Date(Date.now() - 3600000),
-    isOwn: false,
-  },
-  {
-    id: "2",
-    content: "Hi Alex! Great to be here. This looks amazing!",
-    sender: "Jordan",
-    timestamp: new Date(Date.now() - 3000000),
-    isOwn: false,
-  },
-  {
-    id: "3",
-    content: "Thanks! I've been working on this realtime chat app",
-    sender: "Alex",
-    timestamp: new Date(Date.now() - 2400000),
-    isOwn: false,
-  },
-  {
-    id: "4",
-    content: "The design is really sleek! Love the dark theme 🌙",
-    sender: "You",
-    timestamp: new Date(Date.now() - 1800000),
-    isOwn: true,
-  },
+const rooms = [
+  { id: "general", name: "General" },
+  { id: "random", name: "Random" },
+  { id: "tech", name: "Tech Talk" },
+  { id: "gaming", name: "Gaming" },
 ];
 
 const ChatContainer = () => {
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
+  const { user } = useAuth();
+  const {
+    messages,
+    users,
+    typingUsers,
+    currentRoom,
+    sendMessage,
+    joinRoom,
+    startTyping,
+    stopTyping,
+  } = useSocket(user?.id || "", user?.username || "");
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -56,61 +39,59 @@ const ChatContainer = () => {
     scrollToBottom();
   }, [messages]);
 
-  const handleSendMessage = (content: string) => {
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      content,
-      sender: "You",
-      timestamp: new Date(),
-      isOwn: true,
-    };
-    setMessages((prev) => [...prev, newMessage]);
-
-    // Simulate a reply after a short delay
-    setTimeout(() => {
-      const replies = [
-        "That's interesting! Tell me more 🤔",
-        "I totally agree with you!",
-        "Great point! 👍",
-        "Thanks for sharing that!",
-        "Awesome! Keep going 🚀",
-      ];
-      const randomReply = replies[Math.floor(Math.random() * replies.length)];
-      
-      const replyMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        content: randomReply,
-        sender: "Alex",
-        timestamp: new Date(),
-        isOwn: false,
-      };
-      setMessages((prev) => [...prev, replyMessage]);
-    }, 1000 + Math.random() * 2000);
-  };
+  const currentRoomName = rooms.find((r) => r.id === currentRoom)?.name || currentRoom;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.98 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.5 }}
-      className="flex flex-col h-screen max-h-screen bg-background"
-      style={{
-        background: "linear-gradient(135deg, hsl(225 25% 8%) 0%, hsl(230 30% 12%) 100%)",
-      }}
-    >
-      <ChatHeader />
+    <div className="flex h-screen max-h-screen bg-background">
+      <ChatSidebar
+        rooms={rooms}
+        currentRoom={currentRoom}
+        onRoomChange={joinRoom}
+      />
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin">
-        <AnimatePresence mode="popLayout">
-          {messages.map((message, index) => (
-            <ChatMessage key={message.id} message={message} index={index} />
-          ))}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3 }}
+        className="flex-1 flex flex-col min-w-0"
+        style={{
+          background: "linear-gradient(135deg, hsl(225 25% 8%) 0%, hsl(230 30% 12%) 100%)",
+        }}
+      >
+        <ChatHeader roomName={currentRoomName} />
+
+        <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin">
+          <AnimatePresence mode="popLayout">
+            {messages.map((message, index) => (
+              <ChatMessage
+                key={message.id}
+                message={{
+                  id: message.id,
+                  content: message.content,
+                  sender: message.sender,
+                  timestamp: message.timestamp,
+                  isOwn: message.senderId === user?.id,
+                }}
+                index={index}
+              />
+            ))}
+          </AnimatePresence>
+          <div ref={messagesEndRef} />
+        </div>
+
+        <AnimatePresence>
+          {typingUsers.length > 0 && <TypingIndicator users={typingUsers} />}
         </AnimatePresence>
-        <div ref={messagesEndRef} />
-      </div>
 
-      <ChatInput onSendMessage={handleSendMessage} />
-    </motion.div>
+        <ChatInput
+          onSendMessage={sendMessage}
+          onTyping={startTyping}
+          onStopTyping={stopTyping}
+        />
+      </motion.div>
+
+      <UserList users={users} currentUserId={user?.id || ""} />
+    </div>
   );
 };
 
