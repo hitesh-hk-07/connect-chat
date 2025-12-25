@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Send, Smile, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -6,18 +6,43 @@ import { Input } from "@/components/ui/input";
 
 interface ChatInputProps {
   onSendMessage: (content: string) => void;
+  onTyping?: () => void;
+  onStopTyping?: () => void;
 }
 
-const ChatInput = ({ onSendMessage }: ChatInputProps) => {
+const ChatInput = ({ onSendMessage, onTyping, onStopTyping }: ChatInputProps) => {
   const [message, setMessage] = useState("");
+  const typingTimeoutRef = useRef<NodeJS.Timeout>();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (message.trim()) {
       onSendMessage(message.trim());
       setMessage("");
+      onStopTyping?.();
     }
   };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setMessage(e.target.value);
+    onTyping?.();
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    typingTimeoutRef.current = setTimeout(() => {
+      onStopTyping?.();
+    }, 2000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    };
+  }, []);
 
   return (
     <motion.form
@@ -40,7 +65,7 @@ const ChatInput = ({ onSendMessage }: ChatInputProps) => {
         <div className="flex-1 relative">
           <Input
             value={message}
-            onChange={(e) => setMessage(e.target.value)}
+            onChange={handleChange}
             placeholder="Type a message..."
             className="bg-input border-border/50 rounded-full px-5 py-6 text-sm focus-visible:ring-primary/50 focus-visible:ring-offset-0"
           />
@@ -62,7 +87,7 @@ const ChatInput = ({ onSendMessage }: ChatInputProps) => {
             type="submit"
             size="icon"
             disabled={!message.trim()}
-            className="rounded-full h-12 w-12 bg-primary hover:bg-primary/90 glow-primary disabled:opacity-50 disabled:glow-primary"
+            className="rounded-full h-12 w-12 bg-primary hover:bg-primary/90 glow-primary disabled:opacity-50"
           >
             <Send className="h-5 w-5" />
           </Button>
