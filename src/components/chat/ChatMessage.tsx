@@ -1,5 +1,7 @@
 import { motion } from "framer-motion";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import MessageStatus, { MessageStatusType } from "./MessageStatus";
+import FilePreview, { FileAttachment } from "./FilePreview";
 
 interface Message {
   id: string;
@@ -8,6 +10,8 @@ interface Message {
   avatar?: string;
   timestamp: Date;
   isOwn: boolean;
+  status?: MessageStatusType;
+  attachments?: FileAttachment[];
 }
 
 interface ChatMessageProps {
@@ -43,21 +47,34 @@ const ChatMessage = ({ message, index }: ChatMessageProps) => {
           <span className="text-xs font-medium text-muted-foreground">
             {message.sender}
           </span>
-          <span className="text-[10px] text-muted-foreground/60">
+          <span className="text-[10px] text-muted-foreground/60 flex items-center">
             {formatTime(message.timestamp)}
+            {message.isOwn && message.status && (
+              <MessageStatus status={message.status} />
+            )}
           </span>
         </div>
 
-        <motion.div
-          whileHover={{ scale: 1.01 }}
-          className={`px-4 py-2.5 rounded-2xl ${
-            message.isOwn
-              ? "bg-primary text-primary-foreground rounded-br-md"
-              : "bg-secondary text-secondary-foreground rounded-bl-md"
-          }`}
-        >
-          <p className="text-sm leading-relaxed">{message.content}</p>
-        </motion.div>
+        {message.attachments && message.attachments.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-1">
+            {message.attachments.map(file => (
+              <FilePreview key={file.id} file={file} />
+            ))}
+          </div>
+        )}
+
+        {message.content && (
+          <motion.div
+            whileHover={{ scale: 1.01 }}
+            className={`px-4 py-2.5 rounded-2xl ${
+              message.isOwn
+                ? "bg-primary text-primary-foreground rounded-br-md"
+                : "bg-secondary text-secondary-foreground rounded-bl-md"
+            }`}
+          >
+            <p className="text-sm leading-relaxed">{message.content}</p>
+          </motion.div>
+        )}
       </div>
     </motion.div>
   );
