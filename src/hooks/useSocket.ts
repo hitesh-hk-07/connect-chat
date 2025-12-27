@@ -1,6 +1,13 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { MessageStatusType } from "@/components/chat/MessageStatus";
 import { FileAttachment } from "@/components/chat/FilePreview";
+
+export interface Reaction {
+  emoji: string;
+  count: number;
+  userReacted: boolean;
+  users: string[];
+}
 
 interface Message {
   id: string;
@@ -11,6 +18,9 @@ interface Message {
   timestamp: Date;
   status: MessageStatusType;
   attachments?: FileAttachment[];
+  reactions?: Reaction[];
+  isEdited?: boolean;
+  isDeleted?: boolean;
 }
 
 interface User {
@@ -262,6 +272,95 @@ export const useSocket = (userId: string, username: string) => {
     return () => clearInterval(interval);
   }, [users, userId, currentRoom]);
 
+  const editMessage = useCallback((messageId: string, newContent: string) => {
+    setRoomMessages(prev => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach(room => {
+        updated[room] = updated[room].map(msg =>
+          msg.id === messageId ? { ...msg, content: newContent, isEdited: true } : msg
+        );
+      });
+      return updated;
+    });
+    setMessages(prev => prev.map(msg =>
+      msg.id === messageId ? { ...msg, content: newContent, isEdited: true } : msg
+    ));
+  }, []);
+
+  const deleteMessage = useCallback((messageId: string) => {
+    setRoomMessages(prev => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach(room => {
+        updated[room] = updated[room].map(msg =>
+          msg.id === messageId ? { ...msg, content: "This message was deleted", isDeleted: true } : msg
+        );
+      });
+      return updated;
+    });
+    setMessages(prev => prev.map(msg =>
+      msg.id === messageId ? { ...msg, content: "This message was deleted", isDeleted: true } : msg
+    ));
+  }, []);
+
+  const toggleReaction = useCallback((messageId: string, emoji: string) => {
+    const updateReactions = (msg: Message): Message => {
+      if (msg.id !== messageId) return msg;
+      
+      const reactions = msg.reactions || [];
+      const existingReaction = reactions.find(r => r.emoji === emoji);
+      
+      if (existingReaction) {
+        if (existingReaction.userReacted) {
+          // Remove user's reaction
+          const newCount = existingReaction.count - 1;
+          if (newCount === 0) {
+            return { ...msg, reactions: reactions.filter(r => r.emoji !== emoji) };
+          }
+          return {
+            ...msg,
+            reactions: reactions.map(r =>
+              r.emoji === emoji
+                ? { ...r, count: newCount, userReacted: false, users: r.users.filter(u => u !== userId) }
+                : r
+            ),
+          };
+        } else {
+          // Add user's reaction
+          return {
+            ...msg,
+            reactions: reactions.map(r =>
+              r.emoji === emoji
+                ? { ...r, count: r.count + 1, userReacted: true, users: [...r.users, userId] }
+                : r
+            ),
+          };
+        }
+      } else {
+        // New reaction
+        return {
+          ...msg,
+          reactions: [...reactions, { emoji, count: 1, userReacted: true, users: [userId] }],
+        };
+      }
+    };
+
+    setRoomMessages(prev => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach(room => {
+        updated[room] = updated[room].map(updateReactions);
+      });
+      return updated;
+    });
+    setMessages(prev => prev.map(updateReactions));
+  }, [userId]);
+
+  // Track new messages for notifications
+  const onNewMessage = useRef<((msg: Message) => void) | null>(null);
+
+  const setOnNewMessage = useCallback((callback: ((msg: Message) => void) | null) => {
+    onNewMessage.current = callback;
+  }, []);
+
   return {
     messages,
     users,
@@ -277,5 +376,9 @@ export const useSocket = (userId: string, username: string) => {
     startDirectMessage,
     startTyping,
     stopTyping,
+    editMessage,
+    deleteMessage,
+    toggleReaction,
+    setOnNewMessage,
   };
 };

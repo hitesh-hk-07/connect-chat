@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Smile, Paperclip, Image as ImageIcon, X } from "lucide-react";
+import { Send, Smile, Paperclip, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import FilePreview, { FileAttachment } from "./FilePreview";
+import EmojiPicker from "./EmojiPicker";
 
 interface ChatInputProps {
   onSendMessage: (content: string, attachments?: FileAttachment[]) => void;
@@ -14,9 +15,11 @@ interface ChatInputProps {
 const ChatInput = ({ onSendMessage, onTyping, onStopTyping }: ChatInputProps) => {
   const [message, setMessage] = useState("");
   const [attachments, setAttachments] = useState<FileAttachment[]>([]);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const typingTimeoutRef = useRef<NodeJS.Timeout>();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,6 +74,12 @@ const ChatInput = ({ onSendMessage, onTyping, onStopTyping }: ChatInputProps) =>
       }
       return prev.filter(a => a.id !== id);
     });
+  };
+
+  const handleEmojiSelect = (emoji: string) => {
+    setMessage(prev => prev + emoji);
+    setShowEmojiPicker(false);
+    inputRef.current?.focus();
   };
 
   useEffect(() => {
@@ -149,19 +158,28 @@ const ChatInput = ({ onSendMessage, onTyping, onStopTyping }: ChatInputProps) =>
 
           <div className="flex-1 relative">
             <Input
+              ref={inputRef}
               value={message}
               onChange={handleChange}
               placeholder="Type a message..."
-              className="bg-input border-border/50 rounded-full px-5 py-6 text-sm focus-visible:ring-primary/50 focus-visible:ring-offset-0"
+              className="bg-input border-border/50 rounded-full px-5 py-6 text-sm focus-visible:ring-primary/50 focus-visible:ring-offset-0 pr-12"
             />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground hover:bg-transparent"
-            >
-              <Smile className="h-5 w-5" />
-            </Button>
+            <div className="absolute right-2 top-1/2 -translate-y-1/2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                className="text-muted-foreground hover:text-foreground hover:bg-transparent"
+              >
+                <Smile className="h-5 w-5" />
+              </Button>
+              <EmojiPicker
+                isOpen={showEmojiPicker}
+                onClose={() => setShowEmojiPicker(false)}
+                onEmojiSelect={handleEmojiSelect}
+              />
+            </div>
           </div>
 
           <motion.div
