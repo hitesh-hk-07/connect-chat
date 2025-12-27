@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, ReactNode } from "react";
 import { motion } from "framer-motion";
 import { Hash, Phone, Video, MoreVertical, Users, MessageCircle, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -19,13 +19,15 @@ interface ChatHeaderProps {
   isDm?: boolean;
   searchableMessages?: SearchResult[];
   onSelectSearchResult?: (roomId: string) => void;
+  children?: ReactNode;
 }
 
 const ChatHeader = ({ 
   roomName = "General", 
   isDm = false,
   searchableMessages = [],
-  onSelectSearchResult
+  onSelectSearchResult,
+  children
 }: ChatHeaderProps) => {
   const [searchOpen, setSearchOpen] = useState(false);
 
@@ -61,6 +63,7 @@ const ChatHeader = ({
           >
             <Search className="h-5 w-5" />
           </Button>
+          {children}
           <Button
             variant="ghost"
             size="icon"

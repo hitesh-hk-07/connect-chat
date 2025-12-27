@@ -1,5 +1,8 @@
 import { useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Bell, BellOff } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import ChatHeader from "./ChatHeader";
 import ChatMessage from "./ChatMessage";
 import ChatInput from "./ChatInput";
@@ -8,6 +11,7 @@ import UserList from "./UserList";
 import TypingIndicator from "./TypingIndicator";
 import { useSocket } from "@/hooks/useSocket";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNotifications } from "@/hooks/useNotifications";
 import { FileAttachment } from "./FilePreview";
 
 const rooms = [
@@ -33,9 +37,16 @@ const ChatContainer = () => {
     startDirectMessage,
     startTyping,
     stopTyping,
+    editMessage,
+    deleteMessage,
+    toggleReaction,
+    setOnNewMessage,
   } = useSocket(user?.id || "", user?.username || "");
 
+  const { permission, requestPermission, sendNotification } = useNotifications();
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const previousMessagesLength = useRef(messages.length);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -44,6 +55,32 @@ const ChatContainer = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Send notification for new messages from others
+  useEffect(() => {
+    if (messages.length > previousMessagesLength.current) {
+      const newMessages = messages.slice(previousMessagesLength.current);
+      newMessages.forEach(msg => {
+        if (msg.senderId !== user?.id && !msg.isDeleted) {
+          sendNotification({
+            title: msg.sender,
+            body: msg.content || "Sent an attachment",
+            tag: msg.id,
+          });
+        }
+      });
+    }
+    previousMessagesLength.current = messages.length;
+  }, [messages, user?.id, sendNotification]);
+
+  const handleEnableNotifications = async () => {
+    const granted = await requestPermission();
+    if (granted) {
+      toast.success("Notifications enabled!");
+    } else {
+      toast.error("Notifications permission denied");
+    }
+  };
 
   const getRoomDisplayName = () => {
     if (isDmRoom) {
@@ -55,6 +92,19 @@ const ChatContainer = () => {
 
   const handleSendMessage = (content: string, attachments?: FileAttachment[]) => {
     sendMessage(content, attachments);
+  };
+
+  const handleEditMessage = (messageId: string, content: string) => {
+    editMessage(messageId, content);
+  };
+
+  const handleDeleteMessage = (messageId: string) => {
+    deleteMessage(messageId);
+    toast.success("Message deleted");
+  };
+
+  const handleReaction = (messageId: string, emoji: string) => {
+    toggleReaction(messageId, emoji);
   };
 
   return (
@@ -82,7 +132,29 @@ const ChatContainer = () => {
           isDm={isDmRoom}
           searchableMessages={allSearchableMessages}
           onSelectSearchResult={joinRoom}
-        />
+        >
+          {permission !== "granted" && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleEnableNotifications}
+              className="text-muted-foreground hover:text-foreground"
+              title="Enable notifications"
+            >
+              <BellOff className="h-5 w-5" />
+            </Button>
+          )}
+          {permission === "granted" && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-primary"
+              title="Notifications enabled"
+            >
+              <Bell className="h-5 w-5" />
+            </Button>
+          )}
+        </ChatHeader>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin">
           <AnimatePresence mode="popLayout">
@@ -97,8 +169,14 @@ const ChatContainer = () => {
                   isOwn: message.senderId === user?.id,
                   status: message.status,
                   attachments: message.attachments,
+                  reactions: message.reactions,
+                  isEdited: message.isEdited,
+                  isDeleted: message.isDeleted,
                 }}
                 index={index}
+                onEdit={handleEditMessage}
+                onDelete={handleDeleteMessage}
+                onReaction={handleReaction}
               />
             ))}
           </AnimatePresence>
