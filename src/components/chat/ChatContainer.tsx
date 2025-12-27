@@ -8,6 +8,7 @@ import UserList from "./UserList";
 import TypingIndicator from "./TypingIndicator";
 import { useSocket } from "@/hooks/useSocket";
 import { useAuth } from "@/contexts/AuthContext";
+import { FileAttachment } from "./FilePreview";
 
 const rooms = [
   { id: "general", name: "General" },
@@ -25,6 +26,7 @@ const ChatContainer = () => {
     currentRoom,
     isDmRoom,
     directMessages,
+    allSearchableMessages,
     getDmOtherUser,
     sendMessage,
     joinRoom,
@@ -43,13 +45,16 @@ const ChatContainer = () => {
     scrollToBottom();
   }, [messages]);
 
-  // Get room name - either channel name or DM user name
   const getRoomDisplayName = () => {
     if (isDmRoom) {
       const otherUser = getDmOtherUser();
       return otherUser?.username || "Direct Message";
     }
     return rooms.find((r) => r.id === currentRoom)?.name || currentRoom;
+  };
+
+  const handleSendMessage = (content: string, attachments?: FileAttachment[]) => {
+    sendMessage(content, attachments);
   };
 
   return (
@@ -72,7 +77,12 @@ const ChatContainer = () => {
           background: "linear-gradient(135deg, hsl(225 25% 8%) 0%, hsl(230 30% 12%) 100%)",
         }}
       >
-        <ChatHeader roomName={getRoomDisplayName()} isDm={isDmRoom} />
+        <ChatHeader 
+          roomName={getRoomDisplayName()} 
+          isDm={isDmRoom}
+          searchableMessages={allSearchableMessages}
+          onSelectSearchResult={joinRoom}
+        />
 
         <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin">
           <AnimatePresence mode="popLayout">
@@ -85,6 +95,8 @@ const ChatContainer = () => {
                   sender: message.sender,
                   timestamp: message.timestamp,
                   isOwn: message.senderId === user?.id,
+                  status: message.status,
+                  attachments: message.attachments,
                 }}
                 index={index}
               />
@@ -98,7 +110,7 @@ const ChatContainer = () => {
         </AnimatePresence>
 
         <ChatInput
-          onSendMessage={sendMessage}
+          onSendMessage={handleSendMessage}
           onTyping={startTyping}
           onStopTyping={stopTyping}
         />
